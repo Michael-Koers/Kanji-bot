@@ -1,0 +1,5 @@
+**/node_modules
+**/default.log
+**/persisted_settings.json
+**/passphrase
+**/download_mp4.py
