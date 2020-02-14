@@ -9,5 +9,7 @@ module.exports = class GuildSettings {
 
         this.kanji_examples = 3;
         this.kanji_index = 0;
+
+        this.last_kanji_send = '';
     }
 }

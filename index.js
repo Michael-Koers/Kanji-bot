@@ -1,16 +1,24 @@
 const Discord = require('discord.js');
 const bot = new Discord.Client();
-const axios = require('axios');
-const Logger = require('./logger');
-const LOGGER = new Logger();
-const GuildSettings = require('./settings');
+
+const Logger = require('./utils/Logger');
+const KanjiApi = require('./utils/KanjiAPI');
+const KanjiCatch = require('./utils/KanjiCatch');
+
+const GuildSettings = require('./models/Settings');
+const KanjiInfoMessage = require('./models/KanjiInfoMessage');
+const KanjiGuessMessage = require('./models/KanjiGuessMessage');
+
 const ResourcesManager = require('./resources/resources');
 
 /*================================== CONSTANT STUFF =================================*/
 
+const KANJI_API_URL = "https://kanjialive-api.p.rapidapi.com/api/public/kanji";
+
 const resource_manager = new ResourcesManager();
 const AUTH = resource_manager.loadAuth();
-const KANJI_API_URL = "https://kanjialive-api.p.rapidapi.com/api/public/kanji";
+const LOGGER = new Logger();
+const kanji_api = new KanjiApi(KANJI_API_URL, AUTH['KANJI_TOKEN']);
 
 const MINUTE = 60 * 1000;
 const PERSIST_SETTINGS_RATE = 1 // Every x minutes
@@ -28,7 +36,7 @@ let guild_settings = {}; // List of all server ids with their associated bot set
 let total_kanji = 0;
 
 // Kanji spawn chance in percentage.
-let kanji_spawn_chance = 5
+let kanji_spawn_chance = 20;
 
 /*===================================================================================*/
 
@@ -54,9 +62,7 @@ bot.on('ready', () => {
 
     // Persist guild settings every 5 minutes
     setInterval(() => {
-        resource_manager.saveSettings(guild_settings).then(() => {
-            LOGGER.log("Successfully saved settings", new Date())
-        }).catch(() => {
+        resource_manager.saveSettings(guild_settings).catch(() => {
             LOGGER.error("Failed saving settings", new Date())
         })
     }, PERSIST_SETTINGS_RATE * MINUTE)
@@ -102,7 +108,13 @@ bot.on('message', msg => {
                     let kanji = kanji_per_grade[guild_settings[msg.guild.id].grade][guild_settings[msg.guild.id].kanji_index++];
 
                     // Send kanji to the channel
-                    sendKanji(kanji, msg.channel);
+                    kanji_api.getKanjiInformation(kanji).then((kanji_data) => {
+                        let message = new KanjiInfoMessage(kanji_data, resource_manager.getKanjiStrokeOrderGif(kanji_data.kanji.character));
+                        msg.channel.send(message.createMessage());
+                    }).catch((err) => {
+                        msg.channel.send(`すみません, I failed to find information about '${kanji}'(˃̣̣̥﹏˂̣̣̥ ✿)`);
+                        LOGGER.error(err);
+                    })
                     break;
                 /* ==========================================================================================================================================================*/
                 /* ==========================================================================================================================================================*/
@@ -113,14 +125,58 @@ bot.on('message', msg => {
                         break;
                     }
                     msg.channel.send(`I will do my best to find ${args[0]}`)
-                    sendKanji(args[0], msg.channel);
+
+                    kanji_api.getKanjiInformation(args[0]).then((kanji_data) => {
+                        let message = new KanjiInfoMessage(kanji_data, resource_manager.getKanjiStrokeOrderGif(kanji_data.kanji.character));
+                        msg.channel.send(message.createMessage());
+                    }).catch((err) => {
+                        msg.channel.send(`すみません, I failed to find information about '${args[0]}'(˃̣̣̥﹏˂̣̣̥ ✿)`);
+                        LOGGER.error(err);
+                    })
                     break;
+                /* ==========================================================================================================================================================*/
+                /* ==========================================================================================================================================================*/
+                // 'Catch' a Kanji by guessing the English translation
+                case "catch":
+                    if (!guild_settings[msg.guild.id].last_kanji_send) {
+                        msg.channel.send(`There is no kanji to catch!`)
+                        break;
+                    } else if (args.length != 1) {
+                        msg.channel.send("ごめんなさい, this command needs いち command");
+                        break;
+                    }
+
+                    kanji_api.getKanjiInformation(guild_settings[msg.guild.id].last_kanji_send).then((kanji_data) => {
+                        // Sanitize the guess
+                        let guess = args[0].trim().toLowerCase();
+                        let kanji_catch = new KanjiCatch(guess, kanji_data);
+
+                        kanji_catch.isEnglishTranslation().then(() => {
+                            msg.channel.send("YES! That's correct!")
+                        }).catch(() => {
+                            msg.channel.send("Wrong! Noob!");
+                        })
+                    }).catch((err) => {
+                        msg.channel.send("Something went wrong with this Kanji");
+                    });
+
+                    break;
+
                 /* ==========================================================================================================================================================*/
                 /* ==========================================================================================================================================================*/
                 // Select a random kanji from the list and send it to the channel
                 case "random":
                     let random_kanji_index = Math.floor(Math.random() * Math.floor(kanji_per_grade[guild_settings[msg.guild.id].grade].length));
-                    sendKanji(kanji_per_grade[guild_settings[msg.guild.id].grade][random_kanji_index], msg.channel);
+                    let random_kanji = kanji_per_grade[guild_settings[msg.guild.id].grade][random_kanji_index]
+
+                    kanji_api.getKanjiInformation(random_kanji).then((kanji_data) => {
+                        let message = new KanjiInfoMessage(kanji_data, resource_manager.getKanjiStrokeOrderGif(kanji_data.kanji.character));
+                        msg.channel.send(message.createMessage());
+                    }).catch((err) => {
+                        msg.channel.send(`すみません, I tried to surprise you with '${random_kanji}', but I failed (˃̣̣̥﹏˂̣̣̥ ✿)`);
+                        LOGGER.error(err);
+                    });
+
                     break;
                 /* ==========================================================================================================================================================*/
                 /* ==========================================================================================================================================================*/
@@ -135,28 +191,6 @@ bot.on('message', msg => {
                     break;
                 /* ==========================================================================================================================================================*/
                 /* ==========================================================================================================================================================*/
-                // Set the amount of examples the bot sends whenever it sends a kanji
-                case "setexamples":
-                    if (args.length != 1) {
-                        msg.channel.send("ごめんなさい, this command needs いち command");
-                        break;
-                    } else if (isNaN(args[0])) {
-                        msg.channel.send("ばか！ That's not a number!");
-                        break;
-                    } else if (args[0] < 0) {
-                        msg.channel.send("いいえ。");
-                        break;
-                    } else if (args[0] == 0) {
-                        msg.channel.send("I won't send any examples anymore..");
-                        guild_settings[msg.guild.id].kanji_examples = args[0];
-                        break;
-                    }
-                    guild_settings[msg.guild.id].kanji_examples = args[0];
-                    msg.channel.send(`I will now send ${guild_settings[msg.guild.id].kanji_examples} example(s) with every kanji!`)
-                    break;
-                /* ==========================================================================================================================================================*/
-                /* ==========================================================================================================================================================*/
-
                 // Command to set the channel to bot listens to. If no channel is set, the bot will listen to every single channel.
                 case "setchannel":
                     if (args.length != 1) {
@@ -203,7 +237,6 @@ My commands are:
 -find (needs: kanji)
 -random
 -setprefix (needs: string)
--setexamples (broken)
 -setchannel (needs: valid channel name)
 -setgrade (needs: number between 1-6)
 -help
@@ -227,7 +260,6 @@ My commands are:
                 /* ==========================================================================================================================================================*/
                 // Default to message that bot couldn't find a matching command
                 default:
-                    throw 'NO';
                     msg.channel.send(`すみません ${msg.author.username}さん, I don't understand that`);
                     break;
             }
@@ -238,8 +270,6 @@ My commands are:
 
             let random_number = Math.round(Math.random() * 100)
 
-            LOGGER.log(`Random number: ${random_number}, spawn chance: ${kanji_spawn_chance}`)
-
             if (random_number <= kanji_spawn_chance) {
                 // Because the message was send in a random channel, we can't use the channel on the message object.
                 // We have to find the reference to the destination channel via the guild object. Guild object contains a Channels list
@@ -248,10 +278,18 @@ My commands are:
                 channel.send("A random Kanji appeared!");
 
                 // Get kanji
-                let kanji = kanji_per_grade[guild_settings[msg.guild.id].grade][guild_settings[msg.guild.id].kanji_index++];
+                let random_kanji_index = Math.floor(Math.random() * Math.floor(kanji_per_grade[guild_settings[msg.guild.id].grade].length));
+                let random_kanji = kanji_per_grade[guild_settings[msg.guild.id].grade][random_kanji_index]
 
                 // Send kanji to the channel
-                sendKanji(kanji, channel);
+                kanji_api.getKanjiInformation(random_kanji).then((kanji_data) => {
+                    let message = new KanjiGuessMessage(kanji_data, resource_manager.getKanjiStrokeOrderGif(kanji_data.kanji.character));
+                    msg.channel.send(message.createMessage());
+
+                    guild_settings[msg.guild.id].last_kanji_send = random_kanji;
+                }).catch((err) => {
+                    LOGGER.error(err);
+                });
             }
         }
     }
@@ -259,66 +297,5 @@ My commands are:
         LOGGER.error(err);
     }
 });
-
-// Function that takes a kanji and retrieves information about it and sends it to the channel
-function sendKanji(kanji, channel) {
-
-    LOGGER.log(`Retrieving info about ${kanji}`)
-
-    axios.get(`${KANJI_API_URL}/${encodeURI(kanji)}`,
-        {
-            headers: {
-                "x-rapidapi-host": "kanjialive-api.p.rapidapi.com",
-                "x-rapidapi-key": AUTH["KANJI_TOKEN"]
-            }
-        }
-    ).then((res) => {
-
-        const kanji_data = res.data.kanji;
-
-        // Create file attachment object
-        const attachment = new Discord.Attachment(resource_manager.getKanjiStrokeOrderGif(kanji), 'kanji.gif');
-
-        const embed = new Discord.RichEmbed()
-            .setTitle(`${kanji}  -  Grade ${res.data.references.grade}  -  English: '${kanji_data.meaning["english"]}' `)
-
-            // Random color for the message
-            .setColor("#" + Math.random().toString(16).slice(2, 8))
-
-            .addField(`**Onyomi** (Chinese)`,
-                `
-                ${Object.keys(kanji_data.onyomi)[0]}:   ${Object.values(kanji_data.onyomi)[0]}
-                ${Object.keys(kanji_data.onyomi)[1]}:   ${Object.values(kanji_data.onyomi)[1]}
-                `, true)
-            .addField(`**Kunyomi** (Japanese)`,
-                `
-                ${Object.keys(kanji_data.kunyomi)[0]}:  ${Object.values(kanji_data.kunyomi)[0]}
-                ${Object.keys(kanji_data.kunyomi)[1]}:  ${Object.values(kanji_data.kunyomi)[1]}
-                `, true)
-
-            // To make sure the examples don't get behind Kunyomi
-            .addBlankField()
-
-            // Add attachment file and set image of message to the attachment
-            .attachFile(attachment)
-            .setImage('attachment://kanji.gif');
-
-        // If kanji examples are enabled, add examples to the message on a new line
-        if (guild_settings[channel.guild.id].kanji_examples > 0) {
-            for (let i = 0; i < guild_settings[channel.guild.id].kanji_examples; i++) {
-                embed.addField(`**Example ${i + 1}**`,
-                    `${res.data.examples[i].japanese}
-                ${res.data.examples[i].meaning["english"]}`, true);
-            };
-        }
-
-        channel.send(embed);
-
-    }).catch((err) => {
-        channel.send(`I failed to find information about '${kanji}'(˃̣̣̥﹏˂̣̣̥ ✿)`)
-        LOGGER.warn("Axios error:", err);
-        LOGGER.warn("Url that failed:", `${KANJI_API_URL} /${encodeURI(kanji)}`)
-    });
-}
 
 bot.login(AUTH["DISCORD_TOKEN"]);
