@@ -294,8 +294,9 @@ My commands are:
 -kanji
 -find (needs: kanji)
 -random
--surprise
+-surprise (optional: kanji grade)
 -catch (needs: string)
+-score
 -setprefix (needs: string)
 -setchannel (needs: valid channel name)
 -setgrade (needs: number between 1-6)
