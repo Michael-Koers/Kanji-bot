@@ -9,6 +9,7 @@ const KanjiUtils = require('./utils/KanjiUtils');
 const GuildSettings = require('./models/Settings');
 const KanjiInfoMessage = require('./models/KanjiInfoMessage');
 const KanjiGuessMessage = require('./models/KanjiGuessMessage');
+const PlayerScore = require("./models/PlayerScores");
 
 const ResourcesManager = require('./resources/resources');
 
@@ -62,7 +63,7 @@ bot.on('ready', () => {
         });
     };
 
-    // Persist guild settings every 5 minutes
+    // Persist guild settings every x minutes
     setInterval(() => {
         resource_manager.saveSettings(guild_settings).catch(() => {
             LOGGER.error("Failed saving settings", new Date())
@@ -138,12 +139,16 @@ bot.on('message', msg => {
                     break;
                 /* ==========================================================================================================================================================*/
                 /* ==========================================================================================================================================================*/
-                // Force a random kanji spawn to guess/catch
+                // Force a random kanji spawn to guess/catch. User can send a grade 
                 case "surprise":
+
+                    // User can pass along a grade, if this grade is not valid, sent grade of channel
+                    let surprise_grade = kanji_utils.isValidGrade(args[0]) ? args[0] : guild_settings[msg.guild.id].grade;
+
                     msg.channel.send("A random Kanji appeared!");
 
                     // Get kanji
-                    let surprise_kanji = kanji_utils.randomKanji(kanji_per_grade[guild_settings[msg.guild.id].grade]);
+                    let surprise_kanji = kanji_utils.randomKanji(kanji_per_grade[surprise_grade]);
 
                     // Send kanji to the channel
                     kanji_api.getKanjiInformation(surprise_kanji).then((kanji_data) => {
@@ -153,6 +158,8 @@ bot.on('message', msg => {
                         msg.channel.send(message.createMessage());
 
                         guild_settings[msg.guild.id].last_kanji_send = surprise_kanji;
+                        guild_settings[msg.guild.id].last_kanji_send_grade = kanji_data.references.grade;
+
                     }).catch((err) => {
                         LOGGER.error(err);
                     });
@@ -175,16 +182,35 @@ bot.on('message', msg => {
                         let guess = args[0].trim().toLowerCase();
                         let kanji_catch = new KanjiCatch(guess, kanji_data);
 
+                        // TODO: This needs to get refactored. Exceptions are now also caught be the promise catch method.
                         kanji_catch.isEnglishTranslation().then(() => {
-                            msg.channel.send("YES! That's correct!")
-                            guild_settings[msg.guild.id].last_kanji_send = null;
+                            msg.channel.send(`はい! ${msg.author.username}-さん, that's correct!`)
+                            // guild_settings[msg.guild.id].last_kanji_send = null;
 
                             let message = new KanjiInfoMessage(kanji_data, resource_manager.getKanjiStrokeOrderGif(kanji_data.kanji.character));
                             msg.channel.send(message.createMessage());
-                        }).catch(() => {
-                            msg.channel.send("Wrong! Noob!");
+
+                            // If channel has no player scores yet, init an empty one here for backwards compatability (new changes don't break already persisted settings)
+                            if (!guild_settings[msg.guild.id].player_scores) {
+                                guild_settings[msg.guild.id].player_scores = {};
+                            }
+
+                            // Update players score. If player doesn't have a score object yet, create one first, and then update it
+                            if (!guild_settings[msg.guild.id].player_scores[msg.author.id]) {
+                                guild_settings[msg.guild.id].player_scores[msg.author.id] = new PlayerScore();
+                            }
+
+                            // Grades are parsed as strings apparently, and using '+=' with int/strings leads to some weird concatanation
+                            guild_settings[msg.guild.id].player_scores[msg.author.id].score += guild_settings[msg.guild.id].last_kanji_send_grade;
+                            guild_settings[msg.guild.id].player_scores[msg.author.id].kanji_caught++;
+
+                            msg.channel.send(`${msg.author.username}-さん now has a Kanji score of ${guild_settings[msg.guild.id].player_scores[msg.author.id].score} and has caught ${guild_settings[msg.guild.id].player_scores[msg.author.id].kanji_caught}`)
+                        }).catch((err) => {
+                            LOGGER.warn(err)
+                            msg.channel.send("That is not correct..");
                         })
                     }).catch((err) => {
+                        LOGGER.warn(err)
                         msg.channel.send("Something went wrong with this Kanji");
                     });
 
@@ -203,6 +229,12 @@ bot.on('message', msg => {
                         msg.channel.send(`すみません, I tried to surprise you with '${random_kanji}', but I failed (˃̣̣̥﹏˂̣̣̥ ✿)`);
                         LOGGER.error(err);
                     });
+                    break;
+                /* ==========================================================================================================================================================*/
+                /* ==========================================================================================================================================================*/
+                // Change the prefix required for the bot to take action
+                case "score":
+                    msg.channel.send(`${msg.author.username}-さん! You have a Kanji score of ${guild_settings[msg.guild.id].player_scores[msg.author.id].score} and caught a total of ${guild_settings[msg.guild.id].player_scores[msg.author.id].kanji_caught} Kanji!`);
                     break;
                 /* ==========================================================================================================================================================*/
                 /* ==========================================================================================================================================================*/
@@ -243,7 +275,7 @@ bot.on('message', msg => {
                 /* ==========================================================================================================================================================*/
                 /* ==========================================================================================================================================================*/
                 case "setgrade":
-                    if (args[0] > 0 && args[0] <= 6 && !isNaN(args[0])) {
+                    if (kanji_utils.isValidGrade(args[0])) {
                         guild_settings[msg.guild.id].grade = args[0];
                         msg.channel.send(`Grade level has been set to ${guild_settings[msg.guild.id].grade}`)
                     } else {
@@ -262,6 +294,8 @@ My commands are:
 -kanji
 -find (needs: kanji)
 -random
+-surprise
+-catch (needs: string)
 -setprefix (needs: string)
 -setchannel (needs: valid channel name)
 -setgrade (needs: number between 1-6)
@@ -286,7 +320,7 @@ My commands are:
                 /* ==========================================================================================================================================================*/
                 // Default to message that bot couldn't find a matching command
                 default:
-                    msg.channel.send(`すみません ${msg.author.username}さん, I don't understand that`);
+                    msg.channel.send(`すみません ${msg.author.username}-さん, I don't understand that`);
                     break;
             }
         }
@@ -321,6 +355,7 @@ My commands are:
                     channel.send(message.createMessage());
 
                     guild_settings[msg.guild.id].last_kanji_send = random_kanji;
+                    guild_settings[msg.guild.id].last_kanji_send_grade = kanji_data.references.grade;
                 }).catch((err) => {
                     LOGGER.error(err);
                 });

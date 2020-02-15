@@ -11,5 +11,8 @@ module.exports = class GuildSettings {
         this.kanji_index = 0;
 
         this.last_kanji_send = '';
+        this.last_kanji_send_grade = '';
+
+        this.player_scores = {};
     }
 }
