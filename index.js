@@ -4,6 +4,7 @@ const bot = new Discord.Client();
 const Logger = require('./utils/Logger');
 const KanjiApi = require('./utils/KanjiAPI');
 const KanjiCatch = require('./utils/KanjiCatch');
+const KanjiUtils = require('./utils/KanjiUtils');
 
 const GuildSettings = require('./models/Settings');
 const KanjiInfoMessage = require('./models/KanjiInfoMessage');
@@ -19,6 +20,7 @@ const resource_manager = new ResourcesManager();
 const AUTH = resource_manager.loadAuth();
 const LOGGER = new Logger();
 const kanji_api = new KanjiApi(KANJI_API_URL, AUTH['KANJI_TOKEN']);
+const kanji_utils = new KanjiUtils();
 
 const MINUTE = 60 * 1000;
 const PERSIST_SETTINGS_RATE = 1 // Every x minutes
@@ -136,6 +138,31 @@ bot.on('message', msg => {
                     break;
                 /* ==========================================================================================================================================================*/
                 /* ==========================================================================================================================================================*/
+<<<<<<< Updated upstream
+=======
+                // Force a random kanji spawn to guess/catch
+                case "surprise":
+                    msg.channel.send("A random Kanji appeared!");
+
+                    // Get kanji
+                    let surprise_kanji = kanji_utils.randomKanji(kanji_per_grade[guild_settings[msg.guild.id].grade]);
+
+                    // Send kanji to the channel
+                    kanji_api.getKanjiInformation(surprise_kanji).then((kanji_data) => {
+                        LOGGER.log(`Surpise kanji ${surprise_kanji} (${kanji_data.kanji.meaning["english"].split(",")}) has spawned in ${msg.guild.name}`)
+                        let message = new KanjiGuessMessage(kanji_data, resource_manager.getKanjiStrokeOrderGif(kanji_data.kanji.character));
+
+                        msg.channel.send(message.createMessage());
+
+                        guild_settings[msg.guild.id].last_kanji_send = surprise_kanji;
+                    }).catch((err) => {
+                        LOGGER.error(err);
+                    });
+                    break;
+
+                /* ==========================================================================================================================================================*/
+                /* ==========================================================================================================================================================*/
+>>>>>>> Stashed changes
                 // 'Catch' a Kanji by guessing the English translation
                 case "catch":
                     if (!guild_settings[msg.guild.id].last_kanji_send) {
@@ -153,6 +180,10 @@ bot.on('message', msg => {
 
                         kanji_catch.isEnglishTranslation().then(() => {
                             msg.channel.send("YES! That's correct!")
+                            guild_settings[msg.guild.id].last_kanji_send = null;
+
+                            let message = new KanjiInfoMessage(kanji_data, resource_manager.getKanjiStrokeOrderGif(kanji_data.kanji.character));
+                            msg.channel.send(message.createMessage());
                         }).catch(() => {
                             msg.channel.send("Wrong! Noob!");
                         })
@@ -166,8 +197,7 @@ bot.on('message', msg => {
                 /* ==========================================================================================================================================================*/
                 // Select a random kanji from the list and send it to the channel
                 case "random":
-                    let random_kanji_index = Math.floor(Math.random() * Math.floor(kanji_per_grade[guild_settings[msg.guild.id].grade].length));
-                    let random_kanji = kanji_per_grade[guild_settings[msg.guild.id].grade][random_kanji_index]
+                    let random_kanji = kanji_utils.randomKanji(kanji_per_grade[guild_settings[msg.guild.id].grade]);
 
                     kanji_api.getKanjiInformation(random_kanji).then((kanji_data) => {
                         let message = new KanjiInfoMessage(kanji_data, resource_manager.getKanjiStrokeOrderGif(kanji_data.kanji.character));
@@ -176,7 +206,6 @@ bot.on('message', msg => {
                         msg.channel.send(`すみません, I tried to surprise you with '${random_kanji}', but I failed (˃̣̣̥﹏˂̣̣̥ ✿)`);
                         LOGGER.error(err);
                     });
-
                     break;
                 /* ==========================================================================================================================================================*/
                 /* ==========================================================================================================================================================*/
@@ -274,7 +303,15 @@ My commands are:
                 // Because the message was send in a random channel, we can't use the channel on the message object.
                 // We have to find the reference to the destination channel via the guild object. Guild object contains a Channels list
                 // with channel ID as the Key. Destination channel ID is saved in the guild settings.
+<<<<<<< Updated upstream
                 let channel = msg.guild.channels.get(guild_settings[msg.guild.id].destination_channel)
+=======
+                let dest_channel = msg.guild.channels.get(guild_settings[msg.guild.id].destination_channel)
+
+                // Use the destination channel, if that isn't set, use the channel the message came from
+                let channel = dest_channel || msg.channel;
+
+>>>>>>> Stashed changes
                 channel.send("A random Kanji appeared!");
 
                 // Get kanji
@@ -284,7 +321,13 @@ My commands are:
                 // Send kanji to the channel
                 kanji_api.getKanjiInformation(random_kanji).then((kanji_data) => {
                     let message = new KanjiGuessMessage(kanji_data, resource_manager.getKanjiStrokeOrderGif(kanji_data.kanji.character));
+<<<<<<< Updated upstream
                     msg.channel.send(message.createMessage());
+=======
+
+                    LOGGER.log(`Surpise kanji ${random_kanji} (${kanji_data.kanji.meaning["english"].split(",")}) has spawned in ${msg.guild.name}`)
+                    channel.send(message.createMessage());
+>>>>>>> Stashed changes
 
                     guild_settings[msg.guild.id].last_kanji_send = random_kanji;
                 }).catch((err) => {
