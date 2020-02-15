@@ -136,6 +136,12 @@ bot.on('message', msg => {
                     break;
                 /* ==========================================================================================================================================================*/
                 /* ==========================================================================================================================================================*/
+                // 
+                case "surprise":
+
+
+                /* ==========================================================================================================================================================*/
+                /* ==========================================================================================================================================================*/
                 // 'Catch' a Kanji by guessing the English translation
                 case "catch":
                     if (!guild_settings[msg.guild.id].last_kanji_send) {
@@ -274,7 +280,11 @@ My commands are:
                 // Because the message was send in a random channel, we can't use the channel on the message object.
                 // We have to find the reference to the destination channel via the guild object. Guild object contains a Channels list
                 // with channel ID as the Key. Destination channel ID is saved in the guild settings.
-                let channel = msg.guild.channels.get(guild_settings[msg.guild.id].destination_channel)
+                let dest_channel = msg.guild.channels.get(guild_settings[msg.guild.id].destination_channel)
+
+                // Use the destination channel, if that isn't set, use the channel the message came from
+                let channel = dest_channel ?? msg.channel;
+
                 channel.send("A random Kanji appeared!");
 
                 // Get kanji
@@ -284,7 +294,8 @@ My commands are:
                 // Send kanji to the channel
                 kanji_api.getKanjiInformation(random_kanji).then((kanji_data) => {
                     let message = new KanjiGuessMessage(kanji_data, resource_manager.getKanjiStrokeOrderGif(kanji_data.kanji.character));
-                    msg.channel.send(message.createMessage());
+
+                    channel.send(message.createMessage());
 
                     guild_settings[msg.guild.id].last_kanji_send = random_kanji;
                 }).catch((err) => {
