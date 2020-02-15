@@ -138,12 +138,6 @@ bot.on('message', msg => {
                     break;
                 /* ==========================================================================================================================================================*/
                 /* ==========================================================================================================================================================*/
-                // 
-                case "surprise":
-
-
-                /* ==========================================================================================================================================================*/
-                /* ==========================================================================================================================================================*/
                 // Force a random kanji spawn to guess/catch
                 case "surprise":
                     msg.channel.send("A random Kanji appeared!");
@@ -306,23 +300,11 @@ My commands are:
                 // Because the message was send in a random channel, we can't use the channel on the message object.
                 // We have to find the reference to the destination channel via the guild object. Guild object contains a Channels list
                 // with channel ID as the Key. Destination channel ID is saved in the guild settings.
-<<<<<<< HEAD
-                let dest_channel = msg.guild.channels.get(guild_settings[msg.guild.id].destination_channel)
-
-                // Use the destination channel, if that isn't set, use the channel the message came from
-                let channel = dest_channel ?? msg.channel;
-
-=======
-<<<<<<< Updated upstream
-                let channel = msg.guild.channels.get(guild_settings[msg.guild.id].destination_channel)
-=======
                 let dest_channel = msg.guild.channels.get(guild_settings[msg.guild.id].destination_channel)
 
                 // Use the destination channel, if that isn't set, use the channel the message came from
                 let channel = dest_channel || msg.channel;
 
->>>>>>> Stashed changes
->>>>>>> feature/kanji-catch
                 channel.send("A random Kanji appeared!");
 
                 // Get kanji
@@ -332,18 +314,11 @@ My commands are:
                 // Send kanji to the channel
                 kanji_api.getKanjiInformation(random_kanji).then((kanji_data) => {
                     let message = new KanjiGuessMessage(kanji_data, resource_manager.getKanjiStrokeOrderGif(kanji_data.kanji.character));
-<<<<<<< HEAD
 
                     channel.send(message.createMessage());
-=======
-<<<<<<< Updated upstream
-                    msg.channel.send(message.createMessage());
-=======
 
                     LOGGER.log(`Surpise kanji ${random_kanji} (${kanji_data.kanji.meaning["english"].split(",")}) has spawned in ${msg.guild.name}`)
                     channel.send(message.createMessage());
->>>>>>> Stashed changes
->>>>>>> feature/kanji-catch
 
                     guild_settings[msg.guild.id].last_kanji_send = random_kanji;
                 }).catch((err) => {
