@@ -190,7 +190,10 @@ bot.on('message', msg => {
                         let kanji_catch = new KanjiCatch(guess, kanji_data);
 
                         // TODO: This needs to get refactored. Exceptions are now also caught by the promise catch method.
-                        kanji_catch.isEnglishTranslation().then(() => {
+                        kanji_catch.isEnglishTranslation().then((res) => {
+                            
+                            LOGGER.info(res);
+
                             msg.channel.send(`はい! ${msg.author.username}-さん, that's correct!`)
                             // guild_settings[msg.guild.id].last_kanji_send = null;
 
@@ -213,7 +216,7 @@ bot.on('message', msg => {
 
                             msg.channel.send(`${msg.author.username}-さん now has a Kanji score of ${guild_settings[msg.guild.id].player_scores[msg.author.id].score} and has caught ${guild_settings[msg.guild.id].player_scores[msg.author.id].kanji_caught}`)
                         }).catch((err) => {
-                            LOGGER.warn(err)
+                            LOGGER.info(err)
                             msg.channel.send("That is not correct..");
                         })
                     }).catch((err) => {

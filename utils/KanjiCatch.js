@@ -15,9 +15,9 @@ module.exports = class KanjiCatch {
             }
 
             if (acceptable_answers.includes(this.guess)) {
-                resolve();
+                resolve("User send correct answer");
             } else {
-                reject();
+                reject("User send incorrect answer");
             }
         })
     }
