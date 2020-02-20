@@ -42,7 +42,7 @@ let guild_settings = {}; // List of all server ids with their associated bot set
 let total_kanji = 0;
 
 // Kanji spawn chance in percentage.
-let kanji_spawn_chance = 20;
+let kanji_spawn_chance = 2;
 
 /*===================================================================================*/
 
@@ -195,7 +195,7 @@ bot.on('message', msg => {
                             LOGGER.info(res);
 
                             msg.channel.send(`はい! ${msg.author.username}-さん, that's correct!`)
-                            // guild_settings[msg.guild.id].last_kanji_send = null;
+                            guild_settings[msg.guild.id].last_kanji_send = null;
 
                             let message = new KanjiInfoMessage(kanji_data, resource_manager.getKanjiStrokeOrderGif(kanji_data.kanji.character));
                             msg.channel.send(message.createMessage());
