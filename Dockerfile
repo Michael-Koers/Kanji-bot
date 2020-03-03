@@ -5,7 +5,7 @@ WORKDIR /kanji-bot
 RUN apt-get update
 RUN apt-get install npm -y
 
-COPY . ./kanji-bot
+COPY . .
 
 RUN npm install
 
