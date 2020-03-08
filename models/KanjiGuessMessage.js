@@ -2,9 +2,7 @@ const Discord = require('discord.js');
 
 module.exports = class KanjiGuessMessage {
 
-    constructor(kanji_data, kanji_gif) {
-
-        this.kanji_data = kanji_data;
+    constructor(kanji_gif) {
         this.kanji_gif = kanji_gif;
     }
 
