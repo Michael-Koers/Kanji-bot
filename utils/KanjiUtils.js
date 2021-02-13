@@ -7,4 +7,8 @@ module.exports = class KanjiUtils {
     isValidGrade(grade){
         return (grade > 0 && grade <= 6 && !isNaN(grade))
     }
+
+    isValidPercentage(percentage){
+        return (percentage >= 0 && percentage <= 100 && !isNaN(percentage))
+    }
 }

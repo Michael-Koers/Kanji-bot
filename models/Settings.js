@@ -14,5 +14,7 @@ module.exports = class GuildSettings {
         this.last_kanji_send_grade = '';
 
         this.player_scores = {};
+
+        this.kanji_spawn_chance = 2;
     }
 }
