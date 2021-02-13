@@ -350,6 +350,7 @@ My commands are:
 -setprefix (needs: string)
 -setchannel (needs: valid channel name)
 -setgrade (needs: number between 1-6)
+-setspawnchance (needs: percentage between 0 and 100)
 -help
 
 ケーキが好きだ (ꈍ ꒳ ꈍ✿)
