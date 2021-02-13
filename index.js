@@ -14,7 +14,7 @@ const KanjiGuessMessage = require('./models/KanjiGuessMessage');
 const KanjiTipMessage = require('./models/KanjiTipMessage');
 const PlayerScore = require("./models/PlayerScores");
 
-const ResourcesManager = require('./resources/resources');
+const ResourcesManager = require('./resources/Resources');
 
 /*================================== CONSTANT STUFF =================================*/
 
@@ -294,7 +294,7 @@ bot.on('message', msg => {
 
                     // If new channel doesn't exist, stop here.
                     if (!newChannel) {
-                        msg.channel.send("Sorry, I couldn't find that channel. Does the channel exist?");
+                        msg.channel.send(`Sorry, I couldn't find channel ${args[0]}. Does the channel exist?`);
                         break;
                     }
 
@@ -313,6 +313,23 @@ bot.on('message', msg => {
                     } else {
                         msg.channel.send("That grade level is invalid. Grade level must be between 1 and 6.");
                     };
+                    break;
+                /* ==========================================================================================================================================================*/
+                /* ==========================================================================================================================================================*/
+                case "setspawnchange":
+                    // Make sure only 1 argument was provided
+                    if (args.length != 1) {
+                        msg.channel.send("ごめんなさい, this command needs いち command");
+                        break;
+                    }
+                    // Make sure the provided argument is a valid percentage
+                    else if (kanji_utils.isValidPercentage(args[0])) {
+                        guild_settings[msg.guild.id].kanji_spawn_chance = args[0]
+                        msg.channel.send(`This server now has a ${args[0]}% kanji spawn chance!`)
+                    } else {
+                        msg.channel.send(`This command needs one numeric argument betweem 0 and 100.`)
+                    }
+
                     break;
                 /* ==========================================================================================================================================================*/
                 /* ==========================================================================================================================================================*/
@@ -364,7 +381,7 @@ My commands are:
 
             let random_number = Math.round(Math.random() * 100)
 
-            if (random_number <= kanji_spawn_chance) {
+            if (random_number <= guild_settings[msg.guild.id].kanji_spawn_chance) {
                 // Because the message was send in a random channel, we can't use the channel on the message object.
                 // We have to find the reference to the destination channel via the guild object. Guild object contains a Channels list
                 // with channel ID as the Key. Destination channel ID is saved in the guild settings.
